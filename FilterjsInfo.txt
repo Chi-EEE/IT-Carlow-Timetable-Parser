@@ -1,0 +1,5 @@
+deptarray[Entry Number] [0] = Full Department Name
+deptarray[Entry Number] [1] = Shorten Department Name / Abbreviation of Department name
+
+zonearray[Entry Number] [0] = Full Building Name
+zonearray[Entry Number] [1] = Shorten Building Name / Abbreviation of Building name
