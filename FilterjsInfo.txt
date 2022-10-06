@@ -3,3 +3,30 @@ deptarray[Entry Number] [1] = Shorten Department Name / Abbreviation of Departme
 
 zonearray[Entry Number] [0] = Full Building Name
 zonearray[Entry Number] [1] = Shorten Building Name / Abbreviation of Building name
+
+roomarray[Entry Number] [0] = Room Name
+roomarray[Entry Number] [1] = Department Id
+roomarray[Entry Number] [2] = Room Number
+
+roombydeptarray[Entry Number] [0] = Room Name / Number
+roombydeptarray[Entry Number] [1] = Department Id
+roombydeptarray[Entry Number] [2] = Room Number
+
+studsetarray[Entry Number] [0] = Course Name / Course Id
+studsetarray[Entry Number] [1] = Department Name
+studsetarray[Entry Number] [2] = Course Timetable Id
+
+progarray[Entry Number] [0] = Course Name
+progarray[Entry Number] [1] = Department Id
+progarray[Entry Number] [2] = Program Id
+
+modulearray[Entry Number] [0] = Module Name
+modulearray[Entry Number] [1] = Department Id
+modulearray[Entry Number] [2] = Module Id
+
+zonearray[Entry Number] [0] = Zone Name
+zonearray[Entry Number] [1] = Zone Shorten Name / Name
+
+staffarray[Entry Number] [0] = Lecturer Name
+staffarray[Entry Number] [1] = Department Id
+staffarray[Entry Number] [2] = Staff Id
