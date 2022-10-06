@@ -1,0 +1,17 @@
+/timetable_watch Course_Timetable_Id
+
+const interval = 900,000;  // Wait 15 minutes
+
+let timetable = get Timetable();
+let previousTimetable;
+
+while(true) {
+    wait(interval)
+    previousTimetable = timetable;
+    timetable = get Timetable()
+    if (timetable !== previousTimetable) {
+        Something has changed!!!!
+        Do something like message / ping people
+    }
+    take Picture of Page()
+}

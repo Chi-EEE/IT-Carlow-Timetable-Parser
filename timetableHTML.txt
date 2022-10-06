@@ -1,0 +1,23 @@
+table 1 = title
+
+table 2 - 6 = Timetable Day
+
+table 7 = Back / Next
+
+Timetable Day = {
+    colgroup = not needed
+    tbody? = {
+        tr 1 = labels
+        tr 2 - * = {
+            td 1 = Activity
+            td 2 = Module
+            td 3 = Type
+            td 4 = Start
+            td 5 = End
+            td 6 = Duration
+            td 7 = Weeks
+            td 8 = Staff
+            td 9 = Student Groups
+        }
+    }
+}
