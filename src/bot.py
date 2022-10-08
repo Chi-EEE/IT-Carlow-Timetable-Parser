@@ -1,17 +1,19 @@
 import os
+<<<<<<< Updated upstream
 from pyppeteer import launch
+=======
+from dotenv import load_dotenv
+>>>>>>> Stashed changes
 import requests
 import hashlib
 import json
 import jsonschema
 from jsonschema import validate
-from dotenv import load_dotenv
+from bs4 import BeautifulSoup
 import discord
 from discord import app_commands
 
 load_dotenv()
-
-import discord
 
 intents = discord.Intents.default()
 client = discord.Client(intents=intents)
@@ -27,6 +29,54 @@ timetable_channel_schema = {
     "additionalProperties": False,
 }
 
+# This is to check if the channel was set up properly
+async def get_timetable_hash(timetable_id: str):
+    return hashlib.sha256(
+        (os.getenv("PRIVATE_HASH") + timetable_id).encode("utf-8")
+    ).hexdigest()
+
+
+async def post_messages(channel: discord.TextChannel, timetable_id):
+    timetable_url = f"http://timetable.itcarlow.ie/reporting/textspreadsheet;student+set;id;{timetable_id}?t=student+set+textspreadsheet&days=1-5&weeks=&periods=5-40&template=student+set+textspreadsheet"
+    timetable_html = requests.get(timetable_url)
+    timetable_soup = BeautifulSoup(timetable_html.text)
+    body = timetable_soup.find("body")
+    days = [p.find("span").string for p in body.find_all("p", recursive=False)]
+    tables = body.findChildren("table", recursive=False)
+    timetable_days = tables[1:-1]
+
+    for day, modules in zip(days, timetable_days):
+        modules = modules.find_all("tr")[1:]
+        day_modules = []
+        for module in modules:
+            (
+                module_activity,
+                module_name,
+                module_type,
+                module_start,
+                module_end,
+                module_duration,
+                module_weeks,
+                module_room,
+                module_staff,
+                module_student_groups,
+            ) = (module_info.string for module_info in module.find_all("td"))
+            day_modules.append(
+                {
+                    "Activity": module_activity,
+                    "Name": module_name,
+                    "Type": module_type,
+                    "Start": module_start,
+                    "End": module_end,
+                    "Duration": module_duration,
+                    "Weeks": module_weeks,
+                    "Room": module_room,
+                    "Staff": module_staff,
+                    "Student_Groups": module_student_groups,
+                }
+            )
+        await channel.send(json.dumps({day: day_modules}))
+
 
 @tree.command(
     name="timetable_assign",
@@ -41,7 +91,7 @@ async def timetable_assign(
 ):
     has_channel = None
     for channel in interaction.guild.channels:
-        if channel.name == channel_name:
+        if isinstance(channel, discord.TextChannel) and channel.name == channel_name:
             has_channel = channel
             break
     if has_channel:
@@ -53,15 +103,14 @@ async def timetable_assign(
                     {
                         "url": timetable_url,
                         "id": timetable_id,
-                        "hash": hashlib.sha256(  # This is to check if the channel was set up properly
-                            (os.getenv("PRIVATE_HASH") + timetable_id).encode("utf-8")
-                        ).hexdigest(),
+                        "hash": await get_timetable_hash(timetable_id),
                     }
                 )
             )
             await interaction.response.send_message(
                 f"The timetable channel has been assigned."
             )
+            await post_messages(has_channel, timetable_id)
         else:
             await interaction.response.send_message(
                 f"The requested timetable id ({timetable_id}) is invalid."
@@ -79,7 +128,11 @@ async def get_timetable_channels():
             try:
                 timetable_info = json.loads(channel.topic)
                 validate(instance=timetable_info, schema=timetable_channel_schema)
-                print(timetable_info.get("hash"))
+                timetable_id = timetable_info.get("id")
+                real_hash = await get_timetable_hash(timetable_id)
+                if real_hash == timetable_info.get("hash"):
+                    await post_messages(channel, timetable_id)
+                    break
             except jsonschema.ValidationError:
                 pass
             except ValueError:
