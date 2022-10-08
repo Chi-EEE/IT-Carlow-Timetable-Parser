@@ -3,3 +3,4 @@ bs4
 discord.py
 python-dotenv
 jsonschema
+pyppeteer
