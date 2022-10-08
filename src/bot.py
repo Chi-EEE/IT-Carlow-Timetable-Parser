@@ -1,10 +1,8 @@
+from io import BytesIO
 import os
-<<<<<<< Updated upstream
-from pyppeteer import launch
-=======
 from dotenv import load_dotenv
->>>>>>> Stashed changes
 import requests
+from pyppeteer import launch
 import hashlib
 import json
 import jsonschema
@@ -36,9 +34,9 @@ async def get_timetable_hash(timetable_id: str):
     ).hexdigest()
 
 
-async def post_messages(channel: discord.TextChannel, timetable_id):
-    timetable_url = f"http://timetable.itcarlow.ie/reporting/textspreadsheet;student+set;id;{timetable_id}?t=student+set+textspreadsheet&days=1-5&weeks=&periods=5-40&template=student+set+textspreadsheet"
-    timetable_html = requests.get(timetable_url)
+async def send_json_messages(channel: discord.TextChannel, timetable_id):
+    text_timetable_url = f"http://timetable.itcarlow.ie/reporting/textspreadsheet;student+set;id;{timetable_id}?t=student+set+textspreadsheet&days=1-5&weeks=&periods=5-40&template=student+set+textspreadsheet"
+    timetable_html = requests.get(text_timetable_url)
     timetable_soup = BeautifulSoup(timetable_html.text)
     body = timetable_soup.find("body")
     days = [p.find("span").string for p in body.find_all("p", recursive=False)]
@@ -76,6 +74,22 @@ async def post_messages(channel: discord.TextChannel, timetable_id):
                 }
             )
         await channel.send(json.dumps({day: day_modules}))
+
+
+async def send_timetable_screenshot(channel: discord.TextChannel, timetable_id):
+    user_timetable_url = f"http://timetable.itcarlow.ie/reporting/individual;student+set;id;{timetable_id}?t=student+set+individual&days=1-5&weeks=&periods=5-40&template=student+set+individual"
+    browser = await launch(headless=True)
+    page = await browser.newPage()
+    await page.goto(user_timetable_url)
+    timetable_screen = await page.screenshot({"fullPage": True})
+    await browser.close()
+    image_file = discord.File(BytesIO(timetable_screen), filename=f"{timetable_id}.png")
+    await channel.send(file=image_file)
+
+
+async def post_messages(channel: discord.TextChannel, timetable_id):
+    await send_json_messages(channel, timetable_id)
+    await send_timetable_screenshot(channel, timetable_id)
 
 
 @tree.command(
