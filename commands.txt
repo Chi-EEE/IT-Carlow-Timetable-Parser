@@ -16,5 +16,5 @@ while(true) {
     take Picture of Page()
 }
 
-/timetable assign <Course-Name> (Creates / Gets Timetable channel)
+/timetable assign <Course-Name> <Timetable Id> (Creates / Gets Timetable channel)
 /timetable set <Timetable Id> (Sets the timetable id for this channel)
