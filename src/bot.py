@@ -2,6 +2,7 @@ from io import BytesIO
 import os
 from dotenv import load_dotenv
 import requests
+import re
 from pyppeteer import launch
 import hashlib
 import json
@@ -16,6 +17,28 @@ load_dotenv()
 intents = discord.Intents.default()
 client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)
+
+timetable_name_to_id = {}
+
+
+async def setup_timetable_name_to_id():
+    response = requests.get("http://timetable.itcarlow.ie/js/filter.js")
+    if response.status_code == 200:
+        filterJS = response.text
+        timetable_key_name = "studset"
+        timetable_names = re.findall(
+            rf"{timetable_key_name}array\[[0-9]*\] \[[0]\] = \"([a-zA-Z0-9\-\ \&\#\%_\(\)\/\-\,\.]+)\"",
+            filterJS,
+        )
+        timetable_values = re.findall(
+            rf"{timetable_key_name}array\[[0-9]*\] \[[2]\] = \"([a-zA-Z0-9\-\ \&\#\%_\(\)\/\-\,\.]+)\"",
+            filterJS,
+        )
+        for timetable_name, timetable_value in zip(timetable_names, timetable_values):
+            timetable_name_to_id[timetable_name] = timetable_value
+    else:
+        print("Unable to get filter.js from timetable.itcarlow.ie")
+
 
 timetable_channel_schema = {
     "type": "object",
@@ -98,10 +121,10 @@ async def post_messages(channel: discord.TextChannel, timetable_id):
 )
 @app_commands.describe(
     channel_name="Your Channel's Name (Can be anything)",
-    timetable_id="The Id of the timetable",
+    timetable_string="The Name / Id of the timetable (Not URL)",
 )
 async def timetable_assign(
-    interaction: discord.InteractionMessage, channel_name: str, timetable_id: str
+    interaction: discord.InteractionMessage, channel_name: str, timetable_string: str
 ):
     has_channel = None
     for channel in interaction.guild.channels:
@@ -109,6 +132,8 @@ async def timetable_assign(
             has_channel = channel
             break
     if has_channel:
+        if not (timetable_id := timetable_name_to_id.get(timetable_string)):
+            timetable_id = timetable_string
         timetable_url = f"http://timetable.itcarlow.ie/reporting/individual;student+set;id;{timetable_id}?t=student+set+individual&days=1-5&weeks=&periods=5-40&template=student+set+individual"
         res = requests.get(timetable_url)
         if res.status_code == 200:
@@ -156,6 +181,7 @@ async def get_timetable_channels():
 @client.event
 async def on_ready():
     print(f"We have logged in as {client.user}")
+    await setup_timetable_name_to_id()
     await tree.sync()
     await get_timetable_channels()
 
