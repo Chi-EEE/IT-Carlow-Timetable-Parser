@@ -12,5 +12,61 @@
 			"Staff": "_, _",
 			"Student_Groups": "KCSOFD_3B CW238 C3 44;KCSOFD_3A CW238 C3 44"
 		}
+	],
+	"Tuesday": [
+		{
+			"Activity": "Dis S & A II /L",
+			"Name": "Data Structures & Algorithms",
+			"Type": "Lecture",
+			"Start": "10:00",
+			"End": "11:00",
+			"Duration": "1:00",
+			"Weeks": "7-20, 25-29",
+			"Room": "L110 Lecture Room Swivel 48",
+			"Staff": "_, _",
+			"Student_Groups": "KCSOFD_3B CW238 C3 44;KCSOFD_3A CW238 C3 44"
+		}
+	],
+	"Wednesday": [
+		{
+			"Activity": "Dis S & A II /L",
+			"Name": "Data Structures & Algorithms",
+			"Type": "Lecture",
+			"Start": "10:00",
+			"End": "11:00",
+			"Duration": "1:00",
+			"Weeks": "7-20, 25-29",
+			"Room": "L110 Lecture Room Swivel 48",
+			"Staff": "_, _",
+			"Student_Groups": "KCSOFD_3B CW238 C3 44;KCSOFD_3A CW238 C3 44"
+		}
+	],
+	"Thursday": [
+		{
+			"Activity": "Dis S & A II /L",
+			"Name": "Data Structures & Algorithms",
+			"Type": "Lecture",
+			"Start": "10:00",
+			"End": "11:00",
+			"Duration": "1:00",
+			"Weeks": "7-20, 25-29",
+			"Room": "L110 Lecture Room Swivel 48",
+			"Staff": "_, _",
+			"Student_Groups": "KCSOFD_3B CW238 C3 44;KCSOFD_3A CW238 C3 44"
+		}
+	],
+	"Friday": [
+		{
+			"Activity": "Dis S & A II /L",
+			"Name": "Data Structures & Algorithms",
+			"Type": "Lecture",
+			"Start": "10:00",
+			"End": "11:00",
+			"Duration": "1:00",
+			"Weeks": "7-20, 25-29",
+			"Room": "L110 Lecture Room Swivel 48",
+			"Staff": "_, _",
+			"Student_Groups": "KCSOFD_3B CW238 C3 44;KCSOFD_3A CW238 C3 44"
+		}
 	]
 }

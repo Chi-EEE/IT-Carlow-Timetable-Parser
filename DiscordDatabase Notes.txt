@@ -1,1 +1,12 @@
+Get Guild Id
+Assign / Get Timetable Channel 
+
+Check timetable every 15 minutes
+Output new messages including:
+	JSON days
+	Changes from Previous Week and Current Week
+	Picture of Timetable
+
 Message can reach 2000 characters
+
+ref: https://pypi.org/project/DiscordDatabase/
