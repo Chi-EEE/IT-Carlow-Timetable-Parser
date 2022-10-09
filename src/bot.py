@@ -1,4 +1,4 @@
-from io import BytesIO
+from io import BytesIO, TextIOWrapper
 import os
 from dotenv import load_dotenv
 import requests
@@ -51,28 +51,41 @@ timetable_channel_schema = {
     "additionalProperties": False,
 }
 
-timetable_info_schema = {
-    "definitions": {
-        "DayEntry": {
-            "properties": {
-                "Activity": {"type": "string"},
-                "Name": {"type": "string"},
-                "Type": {"type": "string"},
-                "Start": {"type": "string"},
-                "End": {"type": "string"},
-                "Duration": {"type": "string"},
-                "Weeks": {"type": "string"},
-                "Room": {"type": "string"},
-                "Staff": {"type": "string"},
-                "Student_Groups": {"type": "string"},
-            },
-            "additionalProperties": False,
-        }
-    },
+module_schema = {
     "type": "object",
-    "required": ["npcs"],
+    "properties": {
+        "Activity": {"type": "string"},
+        "Name": {"type": "string"},
+        "Type": {"type": "string"},
+        "Start": {"type": "string"},
+        "End": {"type": "string"},
+        "Duration": {"type": "string"},
+        "Weeks": {"type": "string"},
+        "Room": {"type": "string"},
+        "Staff": {"type": "string"},
+        "Student_Groups": {"type": "string"},
+    },
     "additionalProperties": False,
-    "properties": {"items": {"$ref": "#/definitions/DayEntry"}},
+}
+
+day_schema = {
+    "type": "array",
+    "items": module_schema,
+    "additionalProperties": False,
+}
+
+timetable_info_schema = {
+    "type": "object",
+    "properties": {
+        "Monday": day_schema,
+        "Tuesday": day_schema,
+        "Wednesday": day_schema,
+        "Thursday": day_schema,
+        "Friday": day_schema,
+        "Saturday": day_schema,
+        "Sunday": day_schema,
+    },
+    "additionalProperties": False,
 }
 
 # This is to check if the channel was set up properly
@@ -82,7 +95,7 @@ async def get_timetable_hash(timetable_url: str, timetable_id: str):
     ).hexdigest()
 
 
-async def send_json_messages(channel: discord.TextChannel, timetable_id):
+async def send_json_message(channel: discord.TextChannel, timetable_id):
     text_timetable_url = f"http://timetable.itcarlow.ie/reporting/textspreadsheet;student+set;id;{timetable_id}?t=student+set+textspreadsheet&days=1-5&weeks=&periods=5-40&template=student+set+textspreadsheet"
     timetable_html = requests.get(text_timetable_url)
     timetable_soup = BeautifulSoup(timetable_html.text, features="html.parser")
@@ -131,23 +144,25 @@ async def send_json_messages(channel: discord.TextChannel, timetable_id):
 
 
 async def compare_previous_timetable(channel: discord.TextChannel, timetable_id):
-    messages = await channel.history(limit=15)
+    messages = iter([message async for message in channel.history(limit=15)])
     print("reading")
-    while await (message := next(messages, None)):
-        print(message.content)
-        if message.author == client.user:
-            message = next(messages)
+    while message := next(messages):
+        if (
+            message.author == client.user
+            and len(message.attachments) > 0
+            and message.attachments[0].filename.endswith(".json")
+        ):
             try:
-                previous_timetable_info = json.loads(message.content)
-                validate(
-                    instance=previous_timetable_info, schema=timetable_channel_schema
-                )
+                timetable_bytes = BytesIO()
+                await message.attachments[0].save(timetable_bytes)
+                wrapper = TextIOWrapper(timetable_bytes, encoding="utf-8")
+                previous_timetable_info = json.loads(wrapper.read())
+                validate(instance=previous_timetable_info, schema=timetable_info_schema)
                 print("correct")
             except jsonschema.ValidationError:
                 pass
             except ValueError:
                 pass
-            message = next(messages)
             break
 
 
@@ -163,8 +178,8 @@ async def send_timetable_screenshot(channel: discord.TextChannel, timetable_id):
 
 
 async def post_messages(channel: discord.TextChannel, timetable_id):
-    await send_json_messages(channel, timetable_id)
-    # await compare_previous_timetable(channel, timetable_id)
+    await send_json_message(channel, timetable_id)
+    await compare_previous_timetable(channel, timetable_id)
     await send_timetable_screenshot(channel, timetable_id)
 
 
