@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup
 import discord
 from discord import app_commands
 
+
 load_dotenv()
 
 intents = discord.Intents.default()
@@ -53,7 +54,7 @@ timetable_channel_schema = {
 # This is to check if the channel was set up properly
 async def get_timetable_hash(timetable_id: str):
     return hashlib.sha256(
-        (os.getenv("PRIVATE_HASH") + timetable_id).encode("utf-8")
+        (os.getenv("PRIVATE_HASH") + timetable_id).encode()
     ).hexdigest()
 
 
@@ -66,6 +67,7 @@ async def send_json_messages(channel: discord.TextChannel, timetable_id):
     tables = body.findChildren("table", recursive=False)
     timetable_days = tables[1:-1]
 
+    week_modules = {}
     for day, modules in zip(days, timetable_days):
         modules = modules.find_all("tr")[1:]
         day_modules = []
@@ -96,7 +98,12 @@ async def send_json_messages(channel: discord.TextChannel, timetable_id):
                     "Student_Groups": module_student_groups,
                 }
             )
-        await channel.send(json.dumps({day: day_modules}))
+        week_modules[day] = day_modules
+    json_file = discord.File(
+        BytesIO(bytes(json.dumps(week_modules, indent=4), encoding="utf-8")),
+        filename=f"{timetable_id}.json",
+    )
+    await channel.send(file=json_file)
 
 
 async def send_timetable_screenshot(channel: discord.TextChannel, timetable_id):
@@ -147,16 +154,17 @@ async def timetable_assign(
                 )
             )
             await interaction.response.send_message(
-                f"The timetable channel has been assigned."
+                f"The timetable channel has been assigned.", ephemeral=True
             )
             await post_messages(has_channel, timetable_id)
         else:
             await interaction.response.send_message(
-                f"The requested timetable id ({timetable_id}) is invalid."
+                f"The requested timetable id ({timetable_id}) is invalid.",
+                ephemeral=True,
             )
     else:
         await interaction.response.send_message(
-            f"Unable to find the channel ({channel_name})."
+            f"Unable to find the channel ({channel_name}).", ephemeral=True
         )
 
 
