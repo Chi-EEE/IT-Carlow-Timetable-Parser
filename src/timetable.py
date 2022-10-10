@@ -45,6 +45,17 @@ timetable_info_schema = {
     "additionalProperties": False,
 }
 
+def _unidiff_output(expected, actual):
+    """
+    Helper function. Returns a string containing the unified diff of two multiline strings.
+    """
+    expected=expected.splitlines(1)
+    actual=actual.splitlines(1)
+
+    diff=difflib.unified_diff(expected, actual)
+
+    return ''.join(diff)
+    
 class Timetable:
     def __init__(self, client: discord.Client, channel: discord.TextChannel, timetable_id: str):
         self.client = client
@@ -96,38 +107,24 @@ class Timetable:
         self.current_timetable_string = json.dumps(week_modules, indent=4)
         return self.current_timetable_string
 
-
     async def get_previous_timetable_diff(self):
-        sent_out_json = False
         messages = [message async for message in self.channel.history(limit=15)]
         for message in messages:
             if (message.author == self.client.user
             and len(message.attachments) > 0
             and message.attachments[0].filename.endswith(".json")):
-                if (not sent_out_json):
-                    sent_out_json = True
-                    continue
-                print("aadssd")
                 try:
-                    print("oop")
                     timetable_bytes = BytesIO()
                     await message.attachments[0].save(timetable_bytes)
                     wrapper = TextIOWrapper(timetable_bytes, encoding="utf-8")
                     previous_timetable_string = wrapper.read()
                     validate(instance=json.loads(previous_timetable_string), schema=timetable_info_schema)
-                    difference = ""
-                    for diff_line in difflib.unified_diff(previous_timetable_string, self.current_timetable_string):
-                        print(diff_line)
-                        difference += diff_line
-                    return difference
+                    return _unidiff_output(previous_timetable_string, self.current_timetable_string)
                 except jsonschema.ValidationError:
-                    print("a0")
                     pass
                 except ValueError:
-                    print("bp")
                     pass
                 break
-        print("no")
         return ""
 
     async def get_timetable_screenshot(self):

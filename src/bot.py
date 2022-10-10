@@ -59,29 +59,28 @@ async def get_timetable_hash(timetable_url: str, timetable_id: str):
         (os.getenv("PRIVATE_HASH") + timetable_url + timetable_id).encode()
     ).hexdigest()
 
-async def post_timetable_json(channel: discord.TextChannel, timetable: Timetable, timetable_id: str):
-    json_file = discord.File(
-        BytesIO(bytes(await timetable.get_timetable_json(), encoding="utf-8")),
-        filename=f"{timetable_id}.json",
-    )
-    await channel.send(file=json_file)
-
-async def post_previous_timetable_diff(channel: discord.TextChannel, timetable: Timetable):
-    timetable_diff = await timetable.get_previous_timetable_diff()
-    print(f"dif: {timetable_diff}")
-    if (timetable_diff != ""):
-        await channel.send(content=f"""```diff
-        {timetable_diff}```""")
-
 async def post_timetable_screenshot(channel: discord.TextChannel, timetable: Timetable, timetable_id: str):
     image_file = discord.File(await timetable.get_timetable_screenshot(), filename=f"{timetable_id}.png")
     await channel.send(file=image_file)
 
-async def send_timetable_messages(channel: discord.TextChannel, timetable: Timetable, timetable_id: str):
-    await post_timetable_json(channel, timetable, timetable_id)
-    await post_previous_timetable_diff(channel, timetable)
-    await post_timetable_screenshot(channel, timetable, timetable_id)
+async def send_message(channel: discord.TextChannel, message: str, syntax_language: str, file_name: str):
+    if message != "":
+        if len(message) <= 4000:
+            await channel.send(content=f"""```{syntax_language}
+            {message}```""")
+        else:
+            text_file = discord.File(
+                BytesIO(bytes(message, encoding="utf-8")),
+                filename=f"{file_name}.{syntax_language}",
+            )
+            await channel.send(file=text_file)
 
+async def send_timetable_messages(channel: discord.TextChannel, timetable: Timetable, timetable_id: str):
+    current_timetable = await timetable.get_timetable_json()
+    timetable_diff = await timetable.get_previous_timetable_diff()
+    await send_message(channel, current_timetable, "json", timetable_id)
+    await post_timetable_screenshot(channel, timetable, timetable_id)
+    await send_message(channel, timetable_diff, "diff", "Difference")
 
 @tree.command(
     name="timetable_assign",
