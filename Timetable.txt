@@ -1,0 +1,4 @@
+class Timetable {
+    current_timetable_string = ""
+
+}

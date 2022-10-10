@@ -11,7 +11,9 @@ from jsonschema import validate
 from bs4 import BeautifulSoup
 import discord
 from discord import app_commands
+import difflib
 
+from timetable import Timetable
 
 load_dotenv()
 
@@ -51,136 +53,34 @@ timetable_channel_schema = {
     "additionalProperties": False,
 }
 
-module_schema = {
-    "type": "object",
-    "properties": {
-        "Activity": {"type": "string"},
-        "Name": {"type": "string"},
-        "Type": {"type": "string"},
-        "Start": {"type": "string"},
-        "End": {"type": "string"},
-        "Duration": {"type": "string"},
-        "Weeks": {"type": "string"},
-        "Room": {"type": "string"},
-        "Staff": {"type": "string"},
-        "Student_Groups": {"type": "string"},
-    },
-    "additionalProperties": False,
-}
-
-day_schema = {
-    "type": "array",
-    "items": module_schema,
-    "additionalProperties": False,
-}
-
-timetable_info_schema = {
-    "type": "object",
-    "properties": {
-        "Monday": day_schema,
-        "Tuesday": day_schema,
-        "Wednesday": day_schema,
-        "Thursday": day_schema,
-        "Friday": day_schema,
-        "Saturday": day_schema,
-        "Sunday": day_schema,
-    },
-    "additionalProperties": False,
-}
-
 # This is to check if the channel was set up properly
 async def get_timetable_hash(timetable_url: str, timetable_id: str):
     return hashlib.sha256(
         (os.getenv("PRIVATE_HASH") + timetable_url + timetable_id).encode()
     ).hexdigest()
 
-
-async def send_json_message(channel: discord.TextChannel, timetable_id):
-    text_timetable_url = f"http://timetable.itcarlow.ie/reporting/textspreadsheet;student+set;id;{timetable_id}?t=student+set+textspreadsheet&days=1-5&weeks=&periods=5-40&template=student+set+textspreadsheet"
-    timetable_html = requests.get(text_timetable_url)
-    timetable_soup = BeautifulSoup(timetable_html.text, features="html.parser")
-    body = timetable_soup.find("body")
-    days = [p.find("span").string for p in body.find_all("p", recursive=False)]
-    tables = body.findChildren("table", recursive=False)
-    timetable_days = tables[1:-1]
-
-    week_modules = {}
-    for day, modules in zip(days, timetable_days):
-        modules = modules.find_all("tr")[1:]
-        day_modules = []
-        for module in modules:
-            (
-                module_activity,
-                module_name,
-                module_type,
-                module_start,
-                module_end,
-                module_duration,
-                module_weeks,
-                module_room,
-                module_staff,
-                module_student_groups,
-            ) = (module_info.string for module_info in module.find_all("td"))
-            day_modules.append(
-                {
-                    "Activity": module_activity,
-                    "Name": module_name,
-                    "Type": module_type,
-                    "Start": module_start,
-                    "End": module_end,
-                    "Duration": module_duration,
-                    "Weeks": module_weeks,
-                    "Room": module_room,
-                    "Staff": module_staff,
-                    "Student_Groups": module_student_groups,
-                }
-            )
-        week_modules[day] = day_modules
+async def post_timetable_json(channel: discord.TextChannel, timetable: Timetable, timetable_id: str):
     json_file = discord.File(
-        BytesIO(bytes(json.dumps(week_modules, indent=4), encoding="utf-8")),
+        BytesIO(bytes(await timetable.get_timetable_json(), encoding="utf-8")),
         filename=f"{timetable_id}.json",
     )
     await channel.send(file=json_file)
 
+async def post_previous_timetable_diff(channel: discord.TextChannel, timetable: Timetable):
+    timetable_diff = await timetable.get_previous_timetable_diff()
+    print(f"dif: {timetable_diff}")
+    if (timetable_diff != ""):
+        await channel.send(content=f"""```diff
+        {timetable_diff}```""")
 
-async def compare_previous_timetable(channel: discord.TextChannel, timetable_id):
-    messages = iter([message async for message in channel.history(limit=15)])
-    print("reading")
-    while message := next(messages):
-        if (
-            message.author == client.user
-            and len(message.attachments) > 0
-            and message.attachments[0].filename.endswith(".json")
-        ):
-            try:
-                timetable_bytes = BytesIO()
-                await message.attachments[0].save(timetable_bytes)
-                wrapper = TextIOWrapper(timetable_bytes, encoding="utf-8")
-                previous_timetable_info = json.loads(wrapper.read())
-                validate(instance=previous_timetable_info, schema=timetable_info_schema)
-                print("correct")
-            except jsonschema.ValidationError:
-                pass
-            except ValueError:
-                pass
-            break
-
-
-async def send_timetable_screenshot(channel: discord.TextChannel, timetable_id):
-    user_timetable_url = f"http://timetable.itcarlow.ie/reporting/individual;student+set;id;{timetable_id}?t=student+set+individual&days=1-5&weeks=&periods=5-40&template=student+set+individual"
-    browser = await launch(headless=True)
-    page = await browser.newPage()
-    await page.goto(user_timetable_url)
-    timetable_screen = await page.screenshot({"fullPage": True})
-    await browser.close()
-    image_file = discord.File(BytesIO(timetable_screen), filename=f"{timetable_id}.png")
+async def post_timetable_screenshot(channel: discord.TextChannel, timetable: Timetable, timetable_id: str):
+    image_file = discord.File(await timetable.get_timetable_screenshot(), filename=f"{timetable_id}.png")
     await channel.send(file=image_file)
 
-
-async def post_messages(channel: discord.TextChannel, timetable_id):
-    await send_json_message(channel, timetable_id)
-    await compare_previous_timetable(channel, timetable_id)
-    await send_timetable_screenshot(channel, timetable_id)
+async def send_timetable_messages(channel: discord.TextChannel, timetable: Timetable, timetable_id: str):
+    await post_timetable_json(channel, timetable, timetable_id)
+    await post_previous_timetable_diff(channel, timetable)
+    await post_timetable_screenshot(channel, timetable, timetable_id)
 
 
 @tree.command(
@@ -217,7 +117,8 @@ async def timetable_assign(
             await interaction.response.send_message(
                 f"The timetable channel has been assigned.", ephemeral=True
             )
-            await post_messages(has_channel, timetable_id)
+            timetable = Timetable(client, channel, timetable_id)
+            await send_timetable_messages(channel, timetable, timetable_id)
         else:
             await interaction.response.send_message(
                 f"The requested timetable id ({timetable_id}) is invalid.",
@@ -240,7 +141,8 @@ async def get_timetable_channels():
                 timetable_url = timetable_info.get("url")
                 real_hash = await get_timetable_hash(timetable_url, timetable_id)
                 if real_hash == timetable_info.get("hash"):
-                    await post_messages(channel, timetable_id)
+                    timetable = Timetable(client, channel, timetable_id)
+                    await send_timetable_messages(channel, timetable, timetable_id)
                     break
             except jsonschema.ValidationError:
                 pass
