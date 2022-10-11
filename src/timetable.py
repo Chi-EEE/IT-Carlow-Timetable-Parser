@@ -45,24 +45,26 @@ timetable_info_schema = {
     "additionalProperties": False,
 }
 
+
 def _unidiff_output(expected, actual):
     """
     Helper function. Returns a string containing the unified diff of two multiline strings.
     """
-    expected=expected.splitlines(1)
-    actual=actual.splitlines(1)
+    expected = expected.splitlines(1)
+    actual = actual.splitlines(1)
 
-    diff=difflib.unified_diff(expected, actual)
+    diff = difflib.unified_diff(expected, actual)
 
-    return ''.join(diff)
-    
+    return "".join(diff)
+
+
 class Timetable:
-    def __init__(self, client: discord.Client, channel: discord.TextChannel, timetable_id: str):
+    def __init__(self, client: discord.Client, timetable_id: str):
         self.client = client
-        self.channel = channel
         self.current_timetable_string = ""
         self.timetable_id = timetable_id
-        
+        self.channels: list[discord.TextChannel] = []
+
     async def get_timetable_json(self):
         text_timetable_url = f"http://timetable.itcarlow.ie/reporting/textspreadsheet;student+set;id;{self.timetable_id}?t=student+set+textspreadsheet&days=1-5&weeks=&periods=5-40&template=student+set+textspreadsheet"
         timetable_html = requests.get(text_timetable_url)
@@ -107,19 +109,26 @@ class Timetable:
         self.current_timetable_string = json.dumps(week_modules, indent=4)
         return self.current_timetable_string
 
-    async def get_previous_timetable_diff(self):
-        messages = [message async for message in self.channel.history(limit=15)]
+    async def get_previous_timetable_diff(self, channel: discord.TextChannel):
+        messages = [message async for message in channel.history(limit=15)]
         for message in messages:
-            if (message.author == self.client.user
-            and len(message.attachments) > 0
-            and message.attachments[0].filename.endswith(".json")):
+            if (
+                message.author == self.client.user
+                and len(message.attachments) > 0
+                and message.attachments[0].filename.endswith(".json")
+            ):
                 try:
                     timetable_bytes = BytesIO()
                     await message.attachments[0].save(timetable_bytes)
                     wrapper = TextIOWrapper(timetable_bytes, encoding="utf-8")
                     previous_timetable_string = wrapper.read()
-                    validate(instance=json.loads(previous_timetable_string), schema=timetable_info_schema)
-                    return _unidiff_output(previous_timetable_string, self.current_timetable_string)
+                    validate(
+                        instance=json.loads(previous_timetable_string),
+                        schema=timetable_info_schema,
+                    )
+                    return _unidiff_output(
+                        previous_timetable_string, self.current_timetable_string
+                    )
                 except jsonschema.ValidationError:
                     pass
                 except ValueError:
@@ -129,9 +138,14 @@ class Timetable:
 
     async def get_timetable_screenshot(self):
         user_timetable_url = f"http://timetable.itcarlow.ie/reporting/individual;student+set;id;{self.timetable_id}?t=student+set+individual&days=1-5&weeks=&periods=5-40&template=student+set+individual"
-        browser = await launch(headless=True)
+        browser = await launch(
+            headless=True, handleSIGINT=False, handleSIGTERM=False, handleSIGHUP=False
+        )
         page = await browser.newPage()
         await page.goto(user_timetable_url)
         timetable_screen = await page.screenshot({"fullPage": True})
         await browser.close()
         return BytesIO(timetable_screen)
+
+    async def add_channel(self, channel: discord.TextChannel):
+        self.channels.append(channel)
