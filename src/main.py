@@ -10,6 +10,7 @@ from jsonschema import validate
 import discord
 from discord import app_commands
 from discord.ext import tasks
+from keep_alive import keep_alive
 
 from timetable import Timetable
 
@@ -205,4 +206,5 @@ async def on_ready():
     await get_timetable_channels()
     alert_timetable.start()
 
+keep_alive()  # Starts a webserver to be pinged.
 client.run(os.getenv("TOKEN"))

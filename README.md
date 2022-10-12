@@ -28,9 +28,9 @@ TOKEN=(OAuth token from discord bot)
 HASH=(Secret string to prevent users from editing channel topic) 
 ```
 
-Lastly, you run the bot.py script:
+Lastly, you run the main.py script:
 ```
-py src\bot.py
+py src\main.py
 ```
 Result in the Command Prompt:
 ```
