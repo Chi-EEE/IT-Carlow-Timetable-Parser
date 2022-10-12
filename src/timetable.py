@@ -1,4 +1,3 @@
-from asyncio.windows_events import NULL
 from io import BytesIO, TextIOWrapper
 import requests
 from pyppeteer import launch
@@ -66,7 +65,7 @@ class Timetable:
         self.channels: list[discord.TextChannel] = []
         self.created = False
         self.JSON_STRING = ""
-        self.SCREENSHOT: BytesIO = NULL
+        self.SCREENSHOT: BytesIO = False
 
     async def get_json(self):
         text_timetable_url = f"http://timetable.itcarlow.ie/reporting/textspreadsheet;student+set;id;{self.timetable_id}?t=student+set+textspreadsheet&days=1-5&weeks=&periods=5-40&template=student+set+textspreadsheet"
@@ -161,4 +160,4 @@ class Timetable:
     async def clear(self):
         self.created = False
         self.JSON_STRING = ""
-        self.SCREENSHOT = NULL
+        self.SCREENSHOT = False
