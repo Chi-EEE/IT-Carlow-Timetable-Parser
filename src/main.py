@@ -25,7 +25,7 @@ tree = app_commands.CommandTree(client)
 timetable_name_to_id = {}
 
 # List of timetables to update
-timetables: dict[str, Timetable] = {}
+timetables = {}
 
 
 async def setup_timetable_name_to_id():
@@ -77,18 +77,18 @@ async def send_message(
     channel: discord.TextChannel, message: str, syntax_language: str, file_name: str
 ):
     """
-        Sends a message whether the string is less than or equal to 2000 characters long or a text file if the string longer than 2000 characters.
-        Parameters
-        ------------
-        channel: :class:`~discord.Channel`
-            The channel to send the message to.
-        message: :class:`~str`
-            The message which to send to the channel.
-        syntax_language: :class:`~str`
-            The syntax language highlight of the message.
-        file_name: :class:`~str`
-            The file name of the message file if it is over 2000 characters.
-            """
+    Sends a message whether the string is less than or equal to 2000 characters long or a text file if the string longer than 2000 characters.
+    Parameters
+    ------------
+    channel: :class:`~discord.Channel`
+        The channel to send the message to.
+    message: :class:`~str`
+        The message which to send to the channel.
+    syntax_language: :class:`~str`
+        The syntax language highlight of the message.
+    file_name: :class:`~str`
+        The file name of the message file if it is over 2000 characters.
+    """
     if message != "":
         if len(message) <= 2000:
             await channel.send(
@@ -103,11 +103,15 @@ async def send_message(
             await channel.send(file=text_file)
 
 
-async def send_timetable_alert(channel: discord.TextChannel, timetable_id: str, current_timetable: str, timetable_diff: str, timetable_screenshot: BytesIO):
+async def send_timetable_alert(
+    channel: discord.TextChannel,
+    timetable_id: str,
+    current_timetable: str,
+    timetable_diff: str,
+    timetable_screenshot: BytesIO,
+):
     await send_message(channel, current_timetable, "json", timetable_id)
-    await post_timetable_screenshot(
-        channel, timetable_id, timetable_screenshot
-    )
+    await post_timetable_screenshot(channel, timetable_id, timetable_screenshot)
     await send_message(channel, timetable_diff, "diff", "Difference")
 
 
@@ -118,8 +122,14 @@ async def alert_timetable():
         await timetable.create_default()
         for channel in timetable.channels:
             timetable_diff = await timetable.get_previous_timetable_diff(channel)
-            if (timetable_diff != ""):
-                await send_timetable_alert(channel, timetable_id, timetable.JSON_STRING, timetable_diff, timetable.SCREENSHOT)
+            if timetable_diff != "":
+                await send_timetable_alert(
+                    channel,
+                    timetable_id,
+                    timetable.JSON_STRING,
+                    timetable_diff,
+                    timetable.SCREENSHOT,
+                )
 
 
 async def assign_timetable(timetable_id: str, channel: discord.TextChannel):
@@ -130,7 +140,13 @@ async def assign_timetable(timetable_id: str, channel: discord.TextChannel):
     timetable = timetables[timetable_id]
     await timetable.add_channel(channel=channel)
     timetable_diff = await timetable.get_previous_timetable_diff(channel)
-    await send_timetable_alert(channel, timetable_id, timetable.JSON_STRING, timetable_diff, timetable.SCREENSHOT)
+    await send_timetable_alert(
+        channel,
+        timetable_id,
+        timetable.JSON_STRING,
+        timetable_diff,
+        timetable.SCREENSHOT,
+    )
 
 
 @tree.command(
@@ -205,6 +221,7 @@ async def on_ready():
     await tree.sync()
     await get_timetable_channels()
     alert_timetable.start()
+
 
 keep_alive()  # Starts a webserver to be pinged.
 client.run(os.getenv("TOKEN"))
