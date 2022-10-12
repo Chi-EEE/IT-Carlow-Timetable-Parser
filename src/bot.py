@@ -1,21 +1,21 @@
-from io import BytesIO, TextIOWrapper
+from io import BytesIO
 import os
 from dotenv import load_dotenv
 import requests
 import re
-from pyppeteer import launch
 import hashlib
 import json
 import jsonschema
 from jsonschema import validate
-from bs4 import BeautifulSoup
 import discord
 from discord import app_commands
-import difflib
+from discord.ext import tasks
 
 from timetable import Timetable
 
 load_dotenv()
+
+MINUTES = 2
 
 intents = discord.Intents.default()
 client = discord.Client(intents=intents)
@@ -23,19 +23,22 @@ tree = app_commands.CommandTree(client)
 
 timetable_name_to_id = {}
 
+# List of timetables to update
+timetables: dict[str, Timetable] = {}
+
 
 async def setup_timetable_name_to_id():
     response = requests.get("http://timetable.itcarlow.ie/js/filter.js")
     if response.status_code == 200:
-        filterJS = response.text
+        filter_js = response.text
         timetable_key_name = "studset"
         timetable_names = re.findall(
             rf"{timetable_key_name}array\[[0-9]*\] \[[0]\] = \"([a-zA-Z0-9\-\ \&\#\%_\(\)\/\-\,\.]+)\"",
-            filterJS,
+            filter_js,
         )
         timetable_values = re.findall(
             rf"{timetable_key_name}array\[[0-9]*\] \[[2]\] = \"([a-zA-Z0-9\-\ \&\#\%_\(\)\/\-\,\.]+)\"",
-            filterJS,
+            filter_js,
         )
         for timetable_name, timetable_value in zip(timetable_names, timetable_values):
             timetable_name_to_id[timetable_name] = timetable_value
@@ -59,15 +62,25 @@ async def get_timetable_hash(timetable_url: str, timetable_id: str):
         (os.getenv("PRIVATE_HASH") + timetable_url + timetable_id).encode()
     ).hexdigest()
 
-async def post_timetable_screenshot(channel: discord.TextChannel, timetable: Timetable, timetable_id: str):
-    image_file = discord.File(await timetable.get_timetable_screenshot(), filename=f"{timetable_id}.png")
+
+async def post_timetable_screenshot(
+    channel: discord.TextChannel,
+    timetable_id: str,
+    timetable_screenshot: BytesIO,
+):
+    image_file = discord.File(timetable_screenshot, filename=f"{timetable_id}.png")
     await channel.send(file=image_file)
 
-async def send_message(channel: discord.TextChannel, message: str, syntax_language: str, file_name: str):
+
+async def send_message(
+    channel: discord.TextChannel, message: str, syntax_language: str, file_name: str
+):
     if message != "":
-        if len(message) <= 4000:
-            await channel.send(content=f"""```{syntax_language}
-            {message}```""")
+        if len(message) <= 2000:
+            await channel.send(
+                content=f"""```{syntax_language}
+            {message}```"""
+            )
         else:
             text_file = discord.File(
                 BytesIO(bytes(message, encoding="utf-8")),
@@ -75,12 +88,35 @@ async def send_message(channel: discord.TextChannel, message: str, syntax_langua
             )
             await channel.send(file=text_file)
 
-async def send_timetable_messages(channel: discord.TextChannel, timetable: Timetable, timetable_id: str):
-    current_timetable = await timetable.get_timetable_json()
-    timetable_diff = await timetable.get_previous_timetable_diff()
+
+async def send_timetable_alert(channel: discord.TextChannel, timetable_id: str, current_timetable: str, timetable_diff: str, timetable_screenshot: BytesIO):
     await send_message(channel, current_timetable, "json", timetable_id)
-    await post_timetable_screenshot(channel, timetable, timetable_id)
+    await post_timetable_screenshot(
+        channel, timetable_id, timetable_screenshot
+    )
     await send_message(channel, timetable_diff, "diff", "Difference")
+
+
+@tasks.loop(minutes=MINUTES)
+async def alert_timetable():
+    for timetable_id, timetable in timetables.items():
+        await timetable.create_default()
+        for channel in timetable.channels:
+            timetable_diff = await timetable.get_previous_timetable_diff(channel)
+            if (timetable_diff != ""):
+                await send_timetable_alert(channel, timetable_id, timetable.JSON_STRING, timetable_diff, timetable.SCREENSHOT)
+
+
+async def assign_timetable(timetable_id: str, channel: discord.TextChannel):
+    if timetable_id not in timetables:
+        timetable = Timetable(client, timetable_id)
+        timetables[timetable_id] = timetable
+        await timetable.create_default()
+    timetable = timetables[timetable_id]
+    await timetable.add_channel(channel=channel)
+    timetable_diff = await timetable.get_previous_timetable_diff(channel)
+    await send_timetable_alert(channel, timetable_id, timetable.JSON_STRING, timetable_diff, timetable.SCREENSHOT)
+
 
 @tree.command(
     name="timetable_assign",
@@ -116,8 +152,7 @@ async def timetable_assign(
             await interaction.response.send_message(
                 f"The timetable channel has been assigned.", ephemeral=True
             )
-            timetable = Timetable(client, channel, timetable_id)
-            await send_timetable_messages(channel, timetable, timetable_id)
+            await assign_timetable(timetable_id, channel)
         else:
             await interaction.response.send_message(
                 f"The requested timetable id ({timetable_id}) is invalid.",
@@ -140,8 +175,7 @@ async def get_timetable_channels():
                 timetable_url = timetable_info.get("url")
                 real_hash = await get_timetable_hash(timetable_url, timetable_id)
                 if real_hash == timetable_info.get("hash"):
-                    timetable = Timetable(client, channel, timetable_id)
-                    await send_timetable_messages(channel, timetable, timetable_id)
+                    await assign_timetable(timetable_id, channel)
                     break
             except jsonschema.ValidationError:
                 pass
@@ -155,6 +189,6 @@ async def on_ready():
     await setup_timetable_name_to_id()
     await tree.sync()
     await get_timetable_channels()
-
+    alert_timetable.start()
 
 client.run(os.getenv("TOKEN"))
