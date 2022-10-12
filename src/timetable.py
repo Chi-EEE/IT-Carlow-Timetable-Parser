@@ -123,12 +123,10 @@ class Timetable:
         self.SCREENSHOT = BytesIO(timetable_screen)
 
     async def create_default(self):
-        if self.created:
-            self.created = False
-            self.JSON_STRING = ""
-            self.SCREENSHOT = NULL
-        await self.get_json()
-        await self.get_screenshot()
+        if not self.created:
+            self.created = True
+            await self.get_json()
+            await self.get_screenshot()
 
     async def get_previous_timetable_diff(self, channel: discord.TextChannel):
         messages = [message async for message in channel.history(limit=15)]
@@ -159,3 +157,8 @@ class Timetable:
 
     async def add_channel(self, channel: discord.TextChannel):
         self.channels.append(channel)
+
+    async def clear(self):
+        self.created = False
+        self.JSON_STRING = ""
+        self.SCREENSHOT = NULL

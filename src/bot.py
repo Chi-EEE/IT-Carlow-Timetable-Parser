@@ -75,6 +75,19 @@ async def post_timetable_screenshot(
 async def send_message(
     channel: discord.TextChannel, message: str, syntax_language: str, file_name: str
 ):
+    """
+        Sends a message whether the string is less than or equal to 2000 characters long or a text file if the string longer than 2000 characters.
+        Parameters
+        ------------
+        channel: :class:`~discord.Channel`
+            The channel to send the message to.
+        message: :class:`~str`
+            The message which to send to the channel.
+        syntax_language: :class:`~str`
+            The syntax language highlight of the message.
+        file_name: :class:`~str`
+            The file name of the message file if it is over 2000 characters.
+            """
     if message != "":
         if len(message) <= 2000:
             await channel.send(
@@ -100,6 +113,7 @@ async def send_timetable_alert(channel: discord.TextChannel, timetable_id: str, 
 @tasks.loop(minutes=MINUTES)
 async def alert_timetable():
     for timetable_id, timetable in timetables.items():
+        await timetable.clear()
         await timetable.create_default()
         for channel in timetable.channels:
             timetable_diff = await timetable.get_previous_timetable_diff(channel)
