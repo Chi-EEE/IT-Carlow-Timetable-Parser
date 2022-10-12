@@ -1,9 +1,5 @@
-import asyncio
 from io import BytesIO
 import os
-from threading import Thread
-from datetime import datetime
-from time import sleep
 from dotenv import load_dotenv
 import requests
 import re
@@ -13,12 +9,13 @@ import jsonschema
 from jsonschema import validate
 import discord
 from discord import app_commands
+from discord.ext import tasks
 
 from timetable import Timetable
 
 load_dotenv()
 
-MINUTES = 3
+MINUTES = 2
 
 intents = discord.Intents.default()
 client = discord.Client(intents=intents)
@@ -92,15 +89,33 @@ async def send_message(
             await channel.send(file=text_file)
 
 
-async def send_timetable_messages(
-    channel: discord.TextChannel, timetable: Timetable, timetable_id: str
-):
-    current_timetable = await timetable.get_timetable_json()
-    timetable_diff = await timetable.get_previous_timetable_diff(channel)
-    timetable_screenshot = await timetable.get_timetable_screenshot()
+async def send_timetable_alert(channel: discord.TextChannel, timetable_id: str, current_timetable: str, timetable_diff: str, timetable_screenshot: BytesIO):
     await send_message(channel, current_timetable, "json", timetable_id)
-    await post_timetable_screenshot(channel, timetable_id, timetable_screenshot)
+    await post_timetable_screenshot(
+        channel, timetable_id, timetable_screenshot
+    )
     await send_message(channel, timetable_diff, "diff", "Difference")
+
+
+@tasks.loop(minutes=MINUTES)
+async def alert_timetable():
+    for timetable_id, timetable in timetables.items():
+        await timetable.create_default()
+        for channel in timetable.channels:
+            timetable_diff = await timetable.get_previous_timetable_diff(channel)
+            if (timetable_diff != ""):
+                await send_timetable_alert(channel, timetable_id, timetable.JSON_STRING, timetable_diff, timetable.SCREENSHOT)
+
+
+async def assign_timetable(timetable_id: str, channel: discord.TextChannel):
+    if timetable_id not in timetables:
+        timetable = Timetable(client, timetable_id)
+        timetables[timetable_id] = timetable
+        await timetable.create_default()
+    timetable = timetables[timetable_id]
+    await timetable.add_channel(channel=channel)
+    timetable_diff = await timetable.get_previous_timetable_diff(channel)
+    await send_timetable_alert(channel, timetable_id, timetable.JSON_STRING, timetable_diff, timetable.SCREENSHOT)
 
 
 @tree.command(
@@ -137,12 +152,7 @@ async def timetable_assign(
             await interaction.response.send_message(
                 f"The timetable channel has been assigned.", ephemeral=True
             )
-            if timetable_id not in timetables:
-                timetable = Timetable(client, timetable_id)
-                timetables[timetable_id] = timetable
-            timetable = timetables[timetable_id]
-            await timetable.add_channel(channel=channel)
-            await send_timetable_messages(channel, timetable, timetable_id)
+            await assign_timetable(timetable_id, channel)
         else:
             await interaction.response.send_message(
                 f"The requested timetable id ({timetable_id}) is invalid.",
@@ -165,43 +175,12 @@ async def get_timetable_channels():
                 timetable_url = timetable_info.get("url")
                 real_hash = await get_timetable_hash(timetable_url, timetable_id)
                 if real_hash == timetable_info.get("hash"):
-                    if timetable_id not in timetables:
-                        timetable = Timetable(client, timetable_id)
-                        timetables[timetable_id] = timetable
-                    timetable = timetables[timetable_id]
-                    await timetable.add_channel(channel=channel)
-                    await send_timetable_messages(channel, timetable, timetable_id)
+                    await assign_timetable(timetable_id, channel)
                     break
             except jsonschema.ValidationError:
                 pass
             except ValueError:
                 pass
-
-
-async def loop():
-    amount = 60 // MINUTES
-    while datetime.now().minute not in {
-        (i * MINUTES) % 60 for i in range(amount)
-    }:  # Wait 1 second until we are synced up with the 'every 15 minutes' clock
-        sleep(1)
-
-    async def task():
-        for timetable_id, timetable in timetables.items():
-            current_timetable = await timetable.get_timetable_json()
-            timetable_screenshot = await timetable.get_timetable_screenshot()
-            for channel in timetable.channels:
-                timetable_diff = await timetable.get_previous_timetable_diff(channel)
-                await send_message(channel, current_timetable, "json", timetable_id)
-                await post_timetable_screenshot(
-                    channel, timetable_id, timetable_screenshot
-                )
-                await send_message(channel, timetable_diff, "diff", "Difference")
-
-    await task()
-
-    while True:
-        sleep(60 * MINUTES)
-        await task()
 
 
 @client.event
@@ -210,9 +189,6 @@ async def on_ready():
     await setup_timetable_name_to_id()
     await tree.sync()
     await get_timetable_channels()
-
-    loop_thread = Thread(target=asyncio.run, args=(loop(),))
-    loop_thread.start()
-
+    alert_timetable.start()
 
 client.run(os.getenv("TOKEN"))

@@ -1,3 +1,4 @@
+from asyncio.windows_events import NULL
 from io import BytesIO, TextIOWrapper
 import requests
 from pyppeteer import launch
@@ -61,11 +62,13 @@ def _unidiff_output(expected, actual):
 class Timetable:
     def __init__(self, client: discord.Client, timetable_id: str):
         self.client = client
-        self.current_timetable_string = ""
         self.timetable_id = timetable_id
         self.channels: list[discord.TextChannel] = []
+        self.created = False
+        self.JSON_STRING = ""
+        self.SCREENSHOT: BytesIO = NULL
 
-    async def get_timetable_json(self):
+    async def get_json(self):
         text_timetable_url = f"http://timetable.itcarlow.ie/reporting/textspreadsheet;student+set;id;{self.timetable_id}?t=student+set+textspreadsheet&days=1-5&weeks=&periods=5-40&template=student+set+textspreadsheet"
         timetable_html = requests.get(text_timetable_url)
         timetable_soup = BeautifulSoup(timetable_html.text, features="html.parser")
@@ -106,8 +109,26 @@ class Timetable:
                     }
                 )
             week_modules[day] = day_modules
-        self.current_timetable_string = json.dumps(week_modules, indent=4)
-        return self.current_timetable_string
+        self.JSON_STRING = json.dumps(week_modules, indent=4)
+
+    async def get_screenshot(self):
+        user_timetable_url = f"http://timetable.itcarlow.ie/reporting/individual;student+set;id;{self.timetable_id}?t=student+set+individual&days=1-5&weeks=&periods=5-40&template=student+set+individual"
+        browser = await launch(
+            headless=True, handleSIGINT=False, handleSIGTERM=False, handleSIGHUP=False
+        )
+        page = await browser.newPage()
+        await page.goto(user_timetable_url)
+        timetable_screen = await page.screenshot({"fullPage": True})
+        await browser.close()
+        self.SCREENSHOT = BytesIO(timetable_screen)
+
+    async def create_default(self):
+        if self.created:
+            self.created = False
+            self.JSON_STRING = ""
+            self.SCREENSHOT = NULL
+        await self.get_json()
+        await self.get_screenshot()
 
     async def get_previous_timetable_diff(self, channel: discord.TextChannel):
         messages = [message async for message in channel.history(limit=15)]
@@ -127,7 +148,7 @@ class Timetable:
                         schema=timetable_info_schema,
                     )
                     return _unidiff_output(
-                        previous_timetable_string, self.current_timetable_string
+                        previous_timetable_string, self.JSON_STRING
                     )
                 except jsonschema.ValidationError:
                     pass
@@ -135,17 +156,6 @@ class Timetable:
                     pass
                 break
         return ""
-
-    async def get_timetable_screenshot(self):
-        user_timetable_url = f"http://timetable.itcarlow.ie/reporting/individual;student+set;id;{self.timetable_id}?t=student+set+individual&days=1-5&weeks=&periods=5-40&template=student+set+individual"
-        browser = await launch(
-            headless=True, handleSIGINT=False, handleSIGTERM=False, handleSIGHUP=False
-        )
-        page = await browser.newPage()
-        await page.goto(user_timetable_url)
-        timetable_screen = await page.screenshot({"fullPage": True})
-        await browser.close()
-        return BytesIO(timetable_screen)
 
     async def add_channel(self, channel: discord.TextChannel):
         self.channels.append(channel)
