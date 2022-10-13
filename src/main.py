@@ -190,7 +190,8 @@ async def timetable_assign(
             has_channel = channel
             break
     if has_channel:
-        if not (timetable_id := timetable_name_to_id.get(timetable_string)):
+        timetable_id = timetable_name_to_id.get(timetable_string)
+        if not timetable_id:
             timetable_id = timetable_string
         timetable_url = f"http://timetable.itcarlow.ie/reporting/individual;student+set;id;{timetable_id}?t=student+set+individual&days=1-5&weeks=&periods=5-40&template=student+set+individual"
         res = requests.get(timetable_url)
