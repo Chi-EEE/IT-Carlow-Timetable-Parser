@@ -143,7 +143,7 @@ class TimetableClient(discord.Client):
 
     async def get_timetable_channels(self):
         channels = self.get_all_channels()
-        while channel := next(channels, None):
+        for channel in channels:
             if isinstance(channel, discord.TextChannel) and channel.topic:
                 try:
                     timetable_info = json.loads(channel.topic)
