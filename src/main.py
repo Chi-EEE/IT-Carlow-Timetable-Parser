@@ -11,7 +11,6 @@ from jsonschema import validate
 import discord
 from discord import app_commands
 from discord.ext import tasks
-from keep_alive import keep_alive
 
 from timetable import Timetable
 
@@ -159,7 +158,6 @@ class TimetableClient(discord.Client):
                 except ValueError:
                     pass
 
-keep_alive()  # Starts a webserver to be pinged.
 intents = discord.Intents.default()
 client = TimetableClient(intents=intents)
 
